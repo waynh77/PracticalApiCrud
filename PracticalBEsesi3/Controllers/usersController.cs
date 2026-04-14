@@ -42,7 +42,7 @@ namespace PracticalBEsesi3.Controllers
         [HttpPut("{id}")]
         public async Task<IActionResult> PutUser(int id, User User)
         {
-            if (id != User.id)
+            if (id != User.Id)
             {
                 return BadRequest();
             }
@@ -76,7 +76,7 @@ namespace PracticalBEsesi3.Controllers
             _context.Users.Add(User);
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction("GetUser", new { id = User.id }, User);
+            return CreatedAtAction("GetUser", new { id = User.Id }, User);
         }
 
         // DELETE: api/Users/5
@@ -97,7 +97,7 @@ namespace PracticalBEsesi3.Controllers
 
         private bool UserExists(int id)
         {
-            return _context.Users.Any(e => e.id == id);
+            return _context.Users.Any(e => e.Id == id);
         }
     }
 }

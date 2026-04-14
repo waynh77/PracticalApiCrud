@@ -1,8 +1,14 @@
-﻿namespace PracticalBEsesi3.Models
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace PracticalBEsesi3.Models
 {
     public class User
     {
-        public int id { get; set; }
-        public string? nama { get; set;}
+        public int Id { get; set; }
+        public string? Name { get; set; }
+
+        public string Email { get; set; } = "";
+        public string PasswordHash { get; set; } = "";
+
     }
 }
