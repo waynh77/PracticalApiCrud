@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PracticalBEsesi3.Data;
 using PracticalBEsesi3.Dto.Request;
@@ -6,6 +7,7 @@ using PracticalBEsesi3.Models;
 
 namespace PracticalBEsesi3.Controllers
 {
+    [Authorize]
     [Route("api/[controller]")]
     [ApiController]
     public class TaskItemsController : ControllerBase

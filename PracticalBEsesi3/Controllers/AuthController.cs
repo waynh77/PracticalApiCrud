@@ -1,8 +1,12 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using PracticalBEsesi3.Data;
 using PracticalBEsesi3.Dto.Request;
 using PracticalBEsesi3.Models;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
 
 namespace PracticalBEsesi3.Controllers
 {
@@ -11,10 +15,12 @@ namespace PracticalBEsesi3.Controllers
     public class AuthController : ControllerBase
     {
         private readonly AppDbContext _db;
+        private readonly IConfiguration _config;
 
-        public AuthController(AppDbContext db)
+        public AuthController(AppDbContext db, IConfiguration config)
         {
             _db = db;
+            _config = config;
         }
 
         [HttpPost("register")]
@@ -57,10 +63,32 @@ namespace PracticalBEsesi3.Controllers
             if (!isValid)
                 return Unauthorized(new { message = "Password salah" });
 
+            var claims = new[]
+{
+    new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+    new Claim(ClaimTypes.Name, user.Name),
+    new Claim(ClaimTypes.Email, user.Email)
+};
+
+            var key = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(_config["Jwt:Key"]!));
+            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+            var token = new JwtSecurityToken(
+                issuer: _config["Jwt:Issuer"],
+                audience: _config["Jwt:Audience"],
+                claims: claims,
+                expires: DateTime.UtcNow.AddMinutes(3),
+                signingCredentials: creds);
+
+            string tokenString = new JwtSecurityTokenHandler()
+                .WriteToken(token);
+
             return Ok(new
             {
                 message = "Login berhasil",
-                user = new { user.Id, user.Name, user.Email }
+                user = new { user.Id, user.Name, user.Email },
+                token = tokenString
             });
         }
 
