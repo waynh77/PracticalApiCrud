@@ -20,14 +20,17 @@ namespace PracticalBEsesi3.Controllers
         [HttpGet]
         public async Task<ActionResult<IEnumerable<User>>> GetUsers()
         {
-            return await _context.Users.ToListAsync();
+            return await _context.Users
+                .Include(t=>t.Tasks)
+                .ToListAsync();
         }
 
         // GET: api/Users/5
         [HttpGet("{id}")]
         public async Task<ActionResult<User>> GetUser(int id)
         {
-            var User = await _context.Users.FindAsync(id);
+            var User = await _context.Users
+                .FindAsync(id);
 
             if (User == null)
             {

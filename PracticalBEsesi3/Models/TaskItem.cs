@@ -8,5 +8,8 @@
         public bool IsCompleted { get; set; } = false;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime UpdateAt {  get; set; } = DateTime.UtcNow;
+
+        public int UserId { get; set; }
+        public  User User { get; set; }
     }
 }
