@@ -1,6 +1,8 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PracticalBEsesi3.Data;
+using PracticalBEsesi3.Dto.Request;
 using PracticalBEsesi3.Models;
 
 namespace PracticalBEsesi3.Controllers
@@ -16,91 +18,87 @@ namespace PracticalBEsesi3.Controllers
             _context = context;
         }
 
-        // GET: api/Users
-        [HttpGet]
-        public async Task<ActionResult<IEnumerable<User>>> GetUsers()
-        {
-            return await _context.Users
-                .Include(t=>t.Tasks)
-                .ToListAsync();
-        }
-
-        // GET: api/Users/5
+        // GET: api/Users/{id} - Get user profile (owner only)
+        [Authorize]
         [HttpGet("{id}")]
-        public async Task<ActionResult<User>> GetUser(int id)
+        public async Task<IActionResult> GetUser(int id)
         {
-            var User = await _context.Users
-                .FindAsync(id);
-
-            if (User == null)
+            var userId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "0");
+            
+            if (userId != id)
             {
-                return NotFound();
+                return Forbid();
             }
 
-            return User;
+            var user = await _context.Users
+                .Include(u => u.Tasks)
+                .FirstOrDefaultAsync(u => u.Id == id);
+
+            if (user == null)
+            {
+                return NotFound(new { message = "User tidak ditemukan" });
+            }
+
+            return Ok(new
+            {
+                user.Id,
+                user.Name,
+                user.Email,
+                TaskCount = user.Tasks?.Count ?? 0
+            });
         }
 
-        // PUT: api/Users/5
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
+        // PUT: api/Users/{id} - Update user profile
+        [Authorize]
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutUser(int id, User User)
+        public async Task<IActionResult> UpdateUser(int id, [FromBody] UpdateUserDto dto)
         {
-            if (id != User.Id)
+            var userId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "0");
+            
+            if (userId != id)
             {
-                return BadRequest();
+                return Forbid();
             }
 
-            _context.Entry(User).State = EntityState.Modified;
-
-            try
+            if (string.IsNullOrWhiteSpace(dto.Name))
             {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!UserExists(id))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
+                return BadRequest(new { message = "Nama wajib diisi" });
             }
 
-            return NoContent();
-        }
+            var user = await _context.Users.FindAsync(id);
+            if (user == null)
+            {
+                return NotFound(new { message = "User tidak ditemukan" });
+            }
 
-        // POST: api/Users
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
-        [HttpPost]
-        public async Task<ActionResult<User>> PostUser(User User)
-        {
-            _context.Users.Add(User);
+            user.Name = dto.Name;
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction("GetUser", new { id = User.Id }, User);
+            return Ok(new { message = "Profil berhasil diperbarui", user.Id, user.Name, user.Email });
         }
 
-        // DELETE: api/Users/5
+        // DELETE: api/Users/{id} - Delete user account
+        [Authorize]
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteUser(int id)
         {
-            var User = await _context.Users.FindAsync(id);
-            if (User == null)
+            var userId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "0");
+            
+            if (userId != id)
             {
-                return NotFound();
+                return Forbid();
             }
 
-            _context.Users.Remove(User);
+            var user = await _context.Users.FindAsync(id);
+            if (user == null)
+            {
+                return NotFound(new { message = "User tidak ditemukan" });
+            }
+
+            _context.Users.Remove(user);
             await _context.SaveChangesAsync();
 
-            return NoContent();
-        }
-
-        private bool UserExists(int id)
-        {
-            return _context.Users.Any(e => e.Id == id);
+            return Ok(new { message = "Akun berhasil dihapus" });
         }
     }
 }

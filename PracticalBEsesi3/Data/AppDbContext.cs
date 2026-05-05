@@ -3,7 +3,7 @@ using PracticalBEsesi3.Models;
 
 namespace PracticalBEsesi3.Data
 {
-    public class AppDbContext:DbContext
+    public class AppDbContext : DbContext
     {
         public AppDbContext(DbContextOptions<AppDbContext> options)
             : base(options)
@@ -13,19 +13,37 @@ namespace PracticalBEsesi3.Data
         public DbSet<User> Users => Set<User>();
         public DbSet<TaskItem> TaskItems => Set<TaskItem>();
 
-        protected override void OnModelCreating(ModelBuilder mb)
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
+            base.OnModelCreating(modelBuilder);
 
-            mb.Entity<TaskItem>()
-                .HasOne(k => k.User)
-                .WithMany(t => t.Tasks)
-                .HasForeignKey(t => t.UserId);
+            // User to Tasks relationship with cascade delete
+            modelBuilder.Entity<TaskItem>()
+                .HasOne(t => t.User)
+                .WithMany(u => u.Tasks)
+                .HasForeignKey(t => t.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
 
-            mb.Entity<User>()
-                .HasMany(t => t.Tasks)
-                .WithOne(u => u.User)
-                .HasForeignKey(f => f.UserId);
-                
+            // Add indexes for better query performance
+            modelBuilder.Entity<User>()
+                .HasIndex(u => u.Email)
+                .IsUnique();
+
+            modelBuilder.Entity<TaskItem>()
+                .HasIndex(t => t.UserId);
+
+            // Configure property constraints
+            modelBuilder.Entity<User>()
+                .Property(u => u.Email)
+                .HasMaxLength(255);
+
+            modelBuilder.Entity<User>()
+                .Property(u => u.Name)
+                .HasMaxLength(100);
+
+            modelBuilder.Entity<TaskItem>()
+                .Property(t => t.Title)
+                .HasMaxLength(200);
         }
     }
 }

@@ -20,147 +20,164 @@ namespace PracticalBEsesi3.Controllers
             _context = context;
         }
 
+        private int GetUserId()
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
+            {
+                throw new UnauthorizedAccessException("User ID not found in claims");
+            }
+            return userId;
+        }
+
         // GET: api/TaskItems
-        [HttpGet("GetTaskItems")]
-        public async Task<ActionResult<IEnumerable<TaskItem>>> GetTaskItems()
-        {
-            return await _context.TaskItems
-                .Include(t => t.User).ToListAsync();
-        }
-
-        // GET: api/TaskItems/5
-        [HttpGet("TaskItems/{id}")]
-        public async Task<ActionResult<TaskItem>> GetTaskItem(int id)
-        {
-            var taskItem = await _context.TaskItems
-                .FindAsync(id);
-
-            if (taskItem == null)
-            {
-                return NotFound();
-            }
-
-            return taskItem;
-        }
-
-        // PUT: api/TaskItems/5
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
-        [HttpPut("PutTaskItem/{id}")]
-        public async Task<IActionResult> PutTaskItem(int id, UpdateTaskDto taskItem)
-        {
-            if (id == 0)
-            {
-                return BadRequest();
-            }
-            var task = await _context.TaskItems.FindAsync(id);
-            if (task == null)
-                return NotFound(new { message = "Task tidak ditemukan" });
-
-            if (string.IsNullOrWhiteSpace(taskItem.Title))
-                return BadRequest(new { message = "Title wajib diisi" });
-
-            task.Title = taskItem.Title;
-            task.Description = taskItem.Description;
-            task.IsCompleted = taskItem.IsCompleted;
-            task.UpdateAt = DateTime.UtcNow;
-
-            await _context.SaveChangesAsync();
-
-            return CreatedAtAction("GetTaskItem", new { id = task.Id }, task);
-        }
-
-        // POST: api/TaskItems
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
-        [HttpPost("PostTaskItem")]
-        public async Task<ActionResult<TaskItem>> PostTaskItem(CreateTaskDto taskItem)
-        {
-            var task = new TaskItem
-            {
-                Id = 0,
-                Description = taskItem.Deskripsi,
-                Title = taskItem.Judul
-            };
-            _context.TaskItems.Add(task);
-            await _context.SaveChangesAsync();
-
-            return CreatedAtAction("GetTaskItem", new { id = task.Id }, task);
-        }
-
-        // DELETE: api/TaskItems/5
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteTaskItem(int id)
-        {
-            int userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-
-            var task = await _context.TaskItems
-                .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
-
-            if (task == null)
-                return NotFound(new { message = "Task tidak ditemukan" });
-
-
-            _context.TaskItems.Remove(task);
-            await _context.SaveChangesAsync();
-
-            return NoContent();
-        }
-
         [HttpGet]
         public async Task<IActionResult> GetMyTasks()
         {
-            int userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            var userId = GetUserId();
 
             var tasks = await _context.TaskItems
-                .Include(u=>u.User)
                 .Where(t => t.UserId == userId)
-                .Select(t => new TaskItem
+                .Include(u => u.User)
+                .OrderByDescending(t => t.CreatedAt)
+                .Select(t => new
                 {
-                    Id = t.Id,
-                    Title = t.Title,
-                    Description = t.Description,
-                    IsCompleted = t.IsCompleted,
-                    User=t.User
+                    t.Id,
+                    t.Title,
+                    t.Description,
+                    t.IsCompleted,
+                    t.CreatedAt,
+                    t.UpdatedAt,
+                    User = new { t.User!.Id, t.User.Name }
                 })
                 .ToListAsync();
 
-            return Ok(tasks);
+            return Ok(new { count = tasks.Count, data = tasks });
         }
 
+        // GET: api/TaskItems/{id}
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetTaskItem(int id)
+        {
+            var userId = GetUserId();
+
+            var taskItem = await _context.TaskItems
+                .Where(t => t.Id == id && t.UserId == userId)
+                .Include(t => t.User)
+                .FirstOrDefaultAsync();
+
+            if (taskItem == null)
+            {
+                return NotFound(new { message = "Task tidak ditemukan" });
+            }
+
+            return Ok(new
+            {
+                taskItem.Id,
+                taskItem.Title,
+                taskItem.Description,
+                taskItem.IsCompleted,
+                taskItem.CreatedAt,
+                taskItem.UpdatedAt,
+                User = new { taskItem.User!.Id, taskItem.User.Name }
+            });
+        }
+
+        // POST: api/TaskItems
         [HttpPost]
         public async Task<IActionResult> Create(CreateTaskDto dto)
         {
-            int userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            var userId = GetUserId();
 
             var task = new TaskItem
             {
                 Title = dto.Judul,
                 Description = dto.Deskripsi,
                 IsCompleted = false,
-                UserId = userId
+                UserId = userId,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
             };
 
             _context.TaskItems.Add(task);
             await _context.SaveChangesAsync();
-            return Ok(task);
+
+            return CreatedAtAction(nameof(GetTaskItem), new { id = task.Id }, new
+            {
+                task.Id,
+                task.Title,
+                task.Description,
+                task.IsCompleted,
+                task.CreatedAt,
+                task.UpdatedAt
+            });
         }
 
+        // PUT: api/TaskItems/{id}
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(int id, UpdateTaskDto dto)
         {
-            int userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            if (id == 0)
+            {
+                return BadRequest(new { message = "ID tidak valid" });
+            }
+
+            var userId = GetUserId();
 
             var task = await _context.TaskItems
                 .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
 
             if (task == null)
+            {
                 return NotFound(new { message = "Task tidak ditemukan" });
+            }
 
             task.Title = dto.Title;
             task.Description = dto.Description;
             task.IsCompleted = dto.IsCompleted;
+            task.UpdatedAt = DateTime.UtcNow;
+
             await _context.SaveChangesAsync();
-            return Ok(task);
+
+            return Ok(new
+            {
+                task.Id,
+                task.Title,
+                task.Description,
+                task.IsCompleted,
+                task.CreatedAt,
+                task.UpdatedAt
+            });
         }
 
+        // DELETE: api/TaskItems/{id}
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteTaskItem(int id)
+        {
+            var userId = GetUserId();
+
+            var task = await _context.TaskItems
+                .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
+
+            if (task == null)
+            {
+                return NotFound(new { message = "Task tidak ditemukan" });
+            }
+
+            _context.TaskItems.Remove(task);
+            await _context.SaveChangesAsync();
+
+            return NoContent();
+        }
     }
 }
